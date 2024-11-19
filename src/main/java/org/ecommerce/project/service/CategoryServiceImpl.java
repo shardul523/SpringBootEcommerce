@@ -1,9 +1,12 @@
 package org.ecommerce.project.service;
 
+import org.ecommerce.project.dto.CategoriesDTO;
+import org.ecommerce.project.dto.CategoryDTO;
 import org.ecommerce.project.exceptions.APIException;
 import org.ecommerce.project.exceptions.ResourceNotFoundException;
 import org.ecommerce.project.model.Category;
 import org.ecommerce.project.repositories.CategoryRepository;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,44 +15,51 @@ import java.util.Optional;
 @Service
 public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
+    private final ModelMapper modelMapper;
 
-    public CategoryServiceImpl(CategoryRepository categoryRepository) {
+    public CategoryServiceImpl(CategoryRepository categoryRepository, ModelMapper modelMapper) {
         this.categoryRepository = categoryRepository;
+        this.modelMapper = modelMapper;
     }
 
     @Override
-    public List<Category> getAllCategories() {
-        List<Category> allCategories = categoryRepository.findAll();
+    public CategoriesDTO getAllCategories() {
+        List<CategoryDTO> content = categoryRepository.findAll()
+                .stream()
+                .map(category -> modelMapper.map(category, CategoryDTO.class))
+                .toList();
 
-        if (allCategories.isEmpty()) {
+        if (content.isEmpty()) {
             throw new APIException("No categories found");
         }
 
-        return allCategories;
+        return new CategoriesDTO(content);
     }
 
     @Override
-    public String createCategory(Category category) {
+    public CategoryDTO createCategory(CategoryDTO categoryDTO) {
+        Category category = modelMapper.map(categoryDTO, Category.class);
         Category selectedCategory = categoryRepository.findByCategoryName(category.getCategoryName());
         if (selectedCategory != null) {
             throw new APIException("Category with the same name already exists");
         }
-        categoryRepository.save(category);
-        return "Category created successfully";
+        Category savedCategory = categoryRepository.save(category);
+
+        return modelMapper.map(savedCategory, CategoryDTO.class);
     }
 
     @Override
-    public String deleteCategory(Long id) {
-        Optional<Category> selectedCategory = categoryRepository.findById(id);
-        if (selectedCategory.isEmpty()) {
-            throw new ResourceNotFoundException("Category", "categoryId", id);
-        }
-        categoryRepository.delete(selectedCategory.get());
-        return "Category deleted successfully";
+    public CategoryDTO deleteCategory(Long id) {
+        Category selectedCategory = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "categoryId", id));
+
+//        Category deletedCategory = selectedCategory.get();
+        categoryRepository.delete(selectedCategory);
+        return modelMapper.map(selectedCategory, CategoryDTO.class);
     }
 
     @Override
-    public void updateCategory(Long categoryId, Category category) {
+    public CategoryDTO updateCategory(Long categoryId, CategoryDTO categoryDTO) {
         Optional<Category> selectedCategory = categoryRepository.findById(categoryId);
 
         if (selectedCategory.isEmpty()) {
@@ -58,8 +68,10 @@ public class CategoryServiceImpl implements CategoryService {
 
         Category categoryToUpdate = selectedCategory.get();
 
-        categoryToUpdate.setCategoryName(category.getCategoryName());
+        categoryToUpdate.setCategoryName(categoryDTO.getCategoryName());
 
-        categoryRepository.save(categoryToUpdate);
+        Category updatedCategory = categoryRepository.save(categoryToUpdate);
+
+        return modelMapper.map(updatedCategory, CategoryDTO.class);
     }
 }
